@@ -756,60 +756,69 @@ async function buscarPlanilha() {
 }
 
 function processarDadosPlanilha(dados) {
-  // Encontrar o bloco do dia de hoje na planilha
   const hoje_num = new Date().getDate();
-  const hoje_mes = new Date().getMonth(); // 0=jan
-  
-  // Procurar coluna que contém a data de hoje (formato DD/MM)
-  let colDia = -1;
+  const hoje_mes = new Date().getMonth() + 1;
+
+  // Procurar célula com a data de hoje no formato "DD/MM"
+  let colData = -1;
+  let rowData = -1;
+
   for (let r = 0; r < dados.length; r++) {
     for (let c = 0; c < dados[r].length; c++) {
-      const cell = String(dados[r][c]);
+      const cell = String(dados[r][c]).trim();
+      // Tenta formato DD/MM ou D/M
       const match = cell.match(/^(\d{1,2})\/(\d{1,2})$/);
-      if (match && parseInt(match[1]) === hoje_num && parseInt(match[2]) === (hoje_mes + 1)) {
-        colDia = c;
-        break;
+      if (match) {
+        const d = parseInt(match[1]);
+        const m = parseInt(match[2]);
+        if (d === hoje_num && m === hoje_mes) {
+          colData = c;
+          rowData = r;
+          break;
+        }
       }
     }
-    if (colDia >= 0) break;
+    if (colData >= 0) break;
   }
 
-  if (colDia < 0) {
-    alert('Hoje (' + hoje_num + '/' + (hoje_mes+1) + ') não foi encontrado na planilha. Verifique se a aba JUNHO está atualizada.');
+  if (colData < 0) {
+    alert('Hoje (' + hoje_num + '/' + hoje_mes + ') não foi encontrado na planilha. Verifique se a aba JUNHO está atualizada.');
     return;
   }
 
-  // Mapear aulas por horário
+  // A coluna de horários (início) fica 2 colunas antes da data
+  // As colunas dos carrinhos ficam após a coluna da data
+  // Estrutura: AULA | INICIO | FIM | MULTILASER | TURMA | SAMSUNG1 | TURMA | SAMSUNG2 | TURMA | POSITIVO1 | TURMA | ACESSA | TURMA
   const AULA_MAP = {
     '7:00': '1a', '7:50': '2a', '8:40': '3a',
     '9:50': '4a', '10:40': '5a', '11:30': '6aEM',
     '12:20': '6aEF', '13:10': '7a', '14:20': '8a', '15:10': '9a'
   };
 
-  // Carrinho colunas relativas (offset da coluna do dia)
-  // Multilaser=+0, Samsung1=+2, Samsung2=+4, Positivo1=+6, Acessa=+8
+  // Offsets relativos à coluna da data
   const CARRINHO_OFFSET = {
-    multilaser: 0, samsung1: 2, samsung2: 4, positivo1: 6, acessa: 8
+    multilaser: 1, samsung1: 3, samsung2: 5, positivo1: 7, acessa: 9
   };
 
   let novasReservas = {};
 
-  dados.forEach(row => {
-    // Verificar se coluna de horário tem um horário conhecido
-    const horario = String(row[colDia - 2] || '').trim(); // coluna de início
+  for (let r = rowData; r < dados.length; r++) {
+    const row = dados[r];
+    // Horário de início fica 1 coluna antes da data
+    const horario = String(row[colData - 1] || '').trim();
     const aulaId = AULA_MAP[horario];
-    if (!aulaId) return;
+    if (!aulaId) continue;
 
     CARRINHOS.forEach(c => {
       const offset = CARRINHO_OFFSET[c];
-      const prof = String(row[colDia + offset] || '').trim();
-      const turma = String(row[colDia + offset + 1] || '').trim();
+      const prof = String(row[colData + offset] || '').trim();
+      const turma = String(row[colData + offset + 1] || '').trim();
       if (prof) {
         if (!novasReservas[aulaId]) novasReservas[aulaId] = {};
         novasReservas[aulaId][c] = { prof, turma, qtd: '' };
       }
     });
-  });
+  }
 
   reservas = novasReservas;
   saveData('reservas_' + getDateKey(), reservas);
