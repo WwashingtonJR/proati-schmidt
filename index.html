@@ -759,18 +759,31 @@ function processarDadosPlanilha(dados) {
   const hoje_num = new Date().getDate();
   const hoje_mes = new Date().getMonth() + 1;
 
-  // Procurar célula com a data de hoje no formato "DD/MM"
+  // Procurar célula com a data de hoje
   let colData = -1;
   let rowData = -1;
 
   for (let r = 0; r < dados.length; r++) {
     for (let c = 0; c < dados[r].length; c++) {
       const cell = String(dados[r][c]).trim();
-      // Tenta formato DD/MM ou D/M
-      const match = cell.match(/^(\d{1,2})\/(\d{1,2})$/);
-      if (match) {
-        const d = parseInt(match[1]);
-        const m = parseInt(match[2]);
+      
+      // Formato DD/MM/YYYY (data completa)
+      const match1 = cell.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (match1) {
+        const d = parseInt(match1[1]);
+        const m = parseInt(match1[2]);
+        if (d === hoje_num && m === hoje_mes) {
+          colData = c;
+          rowData = r;
+          break;
+        }
+      }
+      
+      // Formato DD/MM (sem ano)
+      const match2 = cell.match(/^(\d{1,2})\/(\d{1,2})$/);
+      if (match2) {
+        const d = parseInt(match2[1]);
+        const m = parseInt(match2[2]);
         if (d === hoje_num && m === hoje_mes) {
           colData = c;
           rowData = r;
