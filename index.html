@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PROATI - E.E Coronel Francisco Schmidt</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>PROATI &mdash; E.E Coronel Francisco Schmidt</h1>
+    <span>Controle de Notebooks</span>
+  </div>
+  <div class="date-display" id="headerDate"></div>
+</header>
+
+<nav>
+  <button class="active" onclick="showSection('painel')">📅 Painel do Dia</button>
+  <button onclick="showSection('avulsas')">📦 Pegas Avulsas</button>
+  <button onclick="showSection('resumo')">📊 Resumo</button>
+</nav>
+
+<main>
+
+  <!-- PAINEL DO DIA -->
+  <div id="sec-painel" class="section active">
+    <div class="painel-header">
+      <div>
+        <h2 id="painelTitle">Reservas do Dia</h2>
+        <div style="font-size:0.8rem; color:var(--text2); margin-top:2px;" id="aulaAtualInfo"></div>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <button class="btn btn-outline" onclick="abrirModalReserva()">+ Adicionar Reserva</button>
+        <button class="btn btn-outline btn-danger" style="border-color:var(--red);color:var(--red)" onclick="limparDia()">🗑 Limpar Dia</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="tabelaReservas">
+        <thead>
+          <tr>
+            <th class="col-aula" rowspan="2" style="width:28px;"></th>
+            <th class="col-aula" rowspan="2">Aula</th>
+            <th class="col-aula" colspan="2">Horário</th>
+            <th colspan="2">Multilaser<br><small style="font-weight:400;font-size:0.7rem;">12 notebooks</small></th>
+            <th colspan="2" style="background:#0d3d7a;">Samsung 1<br><small style="font-weight:400;font-size:0.7rem;">C1–C35 (35)</small></th>
+            <th colspan="2">Samsung 2<br><small style="font-weight:400;font-size:0.7rem;">F1–F45 (45)</small></th>
+            <th colspan="2" style="background:#0d3d7a;">Positivo 1<br><small style="font-weight:400;font-size:0.7rem;">25 notebooks</small></th>
+            <th colspan="2">Positivo Acessa<br><small style="font-weight:400;font-size:0.7rem;">~28 computadores</small></th>
+            <th style="width:40px;"></th>
+          </tr>
+          <tr class="subheader">
+            <th>Início</th><th>Fim</th>
+            <th>Prof. - Atividade</th><th>Turma</th>
+            <th>Prof. - Atividade</th><th>Turma</th>
+            <th>Prof. - Atividade</th><th>Turma</th>
+            <th>Prof. - Atividade</th><th>Turma</th>
+            <th>Prof. - Atividade</th><th>Turma</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbodyReservas"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PEGAS AVULSAS -->
+  <div id="sec-avulsas" class="section">
+    <div class="painel-header">
+      <h2 style="color:var(--blue)">📦 Pegas Avulsas</h2>
+      <button class="btn" onclick="abrirModalAvulsa()">+ Registrar Pega</button>
+    </div>
+    <div id="listaPegas"></div>
+  </div>
+
+  <!-- RESUMO -->
+  <div id="sec-resumo" class="section">
+    <h2 style="color:var(--blue);margin-bottom:1rem;">📊 Resumo do Dia</h2>
+    <div class="resumo-grid" id="resumoGrid"></div>
+    <div id="resumoDetalhe"></div>
+  </div>
+
+</main>
+
+<!-- MODAL RESERVA -->
+<div class="modal-overlay" id="modalReserva">
+  <div class="modal">
+    <h3 id="modalReservaTitulo">Nova Reserva</h3>
+    <div class="form-group">
+      <label>Aula</label>
+      <select id="resAula"></select>
+    </div>
+    <div class="form-group">
+      <label>Carrinho</label>
+      <select id="resCarrinho">
+        <option value="multilaser">Multilaser</option>
+        <option value="samsung1">Samsung 1</option>
+        <option value="samsung2">Samsung 2</option>
+        <option value="positivo1">Positivo 1</option>
+        <option value="acessa">Positivo Acessa</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Professor - Atividade</label>
+      <input type="text" id="resProf" placeholder="Ex: Raquel - Speak">
+    </div>
+    <div class="form-group">
+      <label>Turma</label>
+      <input type="text" id="resTurma" placeholder="Ex: 2C">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="fecharModal('modalReserva')">Cancelar</button>
+      <button class="btn" onclick="salvarReserva()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AVULSA -->
+<div class="modal-overlay" id="modalAvulsa">
+  <div class="modal">
+    <h3>Registrar Pega Avulsa</h3>
+    <div class="form-group">
+      <label>Professor</label>
+      <input type="text" id="avProf" placeholder="Nome do professor">
+    </div>
+    <div class="form-group">
+      <label>Carrinho</label>
+      <select id="avCarrinho">
+        <option value="samsung1">Samsung 1 (C1–C35)</option>
+        <option value="samsung2">Samsung 2 (F1–F45)</option>
+        <option value="positivo1">Positivo 1</option>
+        <option value="multilaser">Multilaser</option>
+        <option value="acessa">Positivo Acessa</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Notebooks / Computadores (separados por vírgula)</label>
+      <input type="text" id="avNotebooks" placeholder="Ex: C1, C2, C5 ou F10, F13">
+    </div>
+    <div class="form-group">
+      <label>Quantidade</label>
+      <input type="number" id="avQtd" min="1" placeholder="Ex: 3">
+    </div>
+    <div class="form-group">
+      <label>Sala / Local</label>
+      <input type="text" id="avSala" placeholder="Ex: Sala 7, Biblioteca">
+    </div>
+    <div class="form-group">
+      <label>Aula / Horário</label>
+      <select id="avAula"></select>
+    </div>
+    <div class="form-group">
+      <label>Observação (opcional)</label>
+      <textarea id="avObs" rows="2" placeholder="Ex: notebooks estavam com bateria baixa..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="fecharModal('modalAvulsa')">Cancelar</button>
+      <button class="btn" onclick="salvarAvulsa()">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<footer style="text-align:center;padding:1.5rem;margin-top:2rem;font-size:0.78rem;color:var(--text2);border-top:1px solid var(--border);">
+  Desenvolvido por <strong style="color:var(--blue);">Washington Junior</strong> &mdash; PROATI · E.E Coronel Francisco Schmidt
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
