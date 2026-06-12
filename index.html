@@ -732,7 +732,7 @@ function saveData(key, val) {
   localStorage.setItem(key, JSON.stringify(val));
 }
 
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbw3H9OrlZte7eF3wrBDdIHl6GF4-imYD4nycw8JNjOt1ufQMkyA0YRFRv7MFw6PmRcwkQ/exec';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyXFb_J_gst98brKPCtHhf-3rCoba1lE3Z6PohkjzC9-D7maBTVf3t0CRxXIdAsNouICA/exec';
 
 let reservas = loadData('reservas_' + getDateKey(), {});
 let avulsas = loadData('avulsas_' + getDateKey(), []);
@@ -743,13 +743,14 @@ async function buscarPlanilha() {
   const btn = document.getElementById('btnSincronizar');
   if (btn) { btn.textContent = '⏳ Buscando...'; btn.disabled = true; }
   try {
-    const res = await fetch(SHEETS_URL);
+    const res = await fetch(SHEETS_URL, { redirect: 'follow' });
     const dados = await res.json();
     dadosPlanilha = dados;
     processarDadosPlanilha(dados);
     if (btn) { btn.textContent = '🔄 Sincronizar Planilha'; btn.disabled = false; }
   } catch(e) {
-    alert('Erro ao buscar planilha. Verifique a conexão.');
+    console.error(e);
+    alert('Erro ao buscar planilha: ' + e.message);
     if (btn) { btn.textContent = '🔄 Sincronizar Planilha'; btn.disabled = false; }
   }
 }
