@@ -118,10 +118,11 @@ function processarDadosPlanilha(dados) {
 
   let novasReservas = {};
 
-  // As linhas de aula começam após a linha do cabeçalho (rowDia + 2)
+  // As linhas de aula começam após o cabeçalho (rowDia + 2)
+  // O label da aula fica na coluna colDia - 1
   for (let r = rowDia + 2; r < dados.length; r++) {
     const row = dados[r];
-    const aulaLabel = String(row[2] || '').trim();
+    const aulaLabel = String(row[colDia - 1] || '').trim();
     const aulaId = AULA_LABEL_MAP[aulaLabel];
 
     if (!aulaId) {
@@ -133,7 +134,8 @@ function processarDadosPlanilha(dados) {
       const offset = CARRINHO_OFFSET[c];
       const prof = String(row[colDia + offset] || '').trim();
       const turma = String(row[colDia + offset + 1] || '').trim();
-      if (prof) {
+      // Ignorar se o valor parece uma data ISO
+      if (prof && !prof.includes('T') && !prof.includes('-30T')) {
         if (!novasReservas[aulaId]) novasReservas[aulaId] = {};
         novasReservas[aulaId][c] = { prof, turma, qtd: '' };
       }
