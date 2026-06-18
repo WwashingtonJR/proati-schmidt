@@ -83,11 +83,19 @@ const AULA_LABEL_MAP = {
 };
 
 // Cada carrinho ocupa 2 colunas (Professor, Turma), nesta ordem,
-// a partir da coluna onde está a data do dia.
-// Ex (quarta 17/06): data=col41 -> Multilaser prof=col45/turma=col46,
-// Samsung1=47/48, Samsung2=49/50, Positivo1=51/52, Acessa=53/54
+// a partir da coluna onde está o NOME DO DIA (cabeçalho "QUARTA-FEIRA" etc),
+// que é a âncora confiável — a coluna da data (linha acima) fica desalinhada
+// em relação a essa estrutura e NÃO deve ser usada para calcular offsets.
+// Confirmado nos dados reais: col do dia +1 = label aula, +2/+3 = horários,
+// +6/+7 = Multilaser (prof/turma), +8/+9 = Samsung1, +10/+11 = Samsung2,
+// +12/+13 = Positivo1, +14/+15 = Acessa.
 const CARRINHO_OFFSET = {
-  multilaser: 4, samsung1: 6, samsung2: 8, positivo1: 10, acessa: 12
+  multilaser: 6, samsung1: 8, samsung2: 10, positivo1: 12, acessa: 14
+};
+
+const DIA_HEADER_MAP = {
+  1: 'SEGUNDA-FEIRA', 2: 'TERÇA-FEIRA', 3: 'QUARTA-FEIRA',
+  4: 'QUINTA-FEIRA', 5: 'SEXTA-FEIRA'
 };
 
 function processarDadosPlanilha(dados) {
@@ -95,43 +103,56 @@ function processarDadosPlanilha(dados) {
   const hojeISO = hoje.getFullYear() + '-' +
     String(hoje.getMonth()+1).padStart(2,'0') + '-' +
     String(hoje.getDate()).padStart(2,'0');
+  const nomeDiaHoje = DIA_HEADER_MAP[hoje.getDay()];
 
-  // Procurar a linha/coluna da data de hoje, mas SÓ em linhas que
-  // de fato são cabeçalhos de bloco de dia (têm uma data ISO numa célula
-  // e, 3 linhas abaixo, a palavra "AULA" na coluna seguinte).
-  // Isso evita cair em ocorrências erradas da mesma data em outro lugar da planilha.
-  let colDia = -1;
-  let rowDia = -1;
+  if (!nomeDiaHoje) {
+    alert('Hoje é fim de semana, não há painel de aulas.');
+    return;
+  }
 
+  // Passo 1: achar a LINHA da data de hoje, apenas para localizar em qual
+  // bloco semanal estamos. A COLUNA dessa data não é usada para offsets,
+  // pois fica desalinhada em relação à linha de cabeçalho do dia.
+  let rowData = -1;
   for (let r = 0; r < dados.length; r++) {
     const row = dados[r];
     for (let c = 0; c < row.length; c++) {
       const cell = String(row[c] || '').trim();
-      if (!cell.startsWith(hojeISO)) continue;
-
-      // Confirma que é realmente um cabeçalho de bloco de dia:
-      // 3 linhas abaixo, a coluna c+1 deve conter "AULA"
-      const linhaCabecalho = dados[r + 3];
-      if (linhaCabecalho) {
-        const marcador = String(linhaCabecalho[c + 1] || '').trim().toUpperCase();
-        if (marcador === 'AULA') {
-          colDia = c;
-          rowDia = r;
-          break;
-        }
-      }
+      if (cell.startsWith(hojeISO)) { rowData = r; break; }
     }
-    if (colDia >= 0) break;
+    if (rowData >= 0) break;
   }
 
-  if (colDia < 0) {
+  if (rowData < 0) {
     alert('Hoje (' + hoje.getDate() + '/' + (hoje.getMonth()+1) + ') não foi encontrado na planilha. Verifique se a aba JUNHO está atualizada.');
     return;
   }
 
-  // A linha de cabeçalho com PROFESSOR/Turma fica 3 linhas abaixo da data.
-  // As linhas de aula começam imediatamente depois dela.
-  const rowCabecalho = rowDia + 3;
+  // Passo 2: a linha de cabeçalho do dia (com "QUARTA-FEIRA", "AULA",
+  // "HORÁRIO", "PROFESSOR - Comp.") fica 2 linhas abaixo da linha da data
+  // (a linha da data, depois uma linha "Novo (não levar carrinho)", depois
+  // o cabeçalho). É NELA que buscamos a coluna do dia certo — essa é a
+  // âncora real para todos os offsets de carrinho.
+  const rowCabecalho = rowData + 2;
+  const linhaCabecalho = dados[rowCabecalho];
+  if (!linhaCabecalho) {
+    alert('Não foi possível localizar o cabeçalho do dia na planilha.');
+    return;
+  }
+
+  let colDia = -1;
+  for (let c = 0; c < linhaCabecalho.length; c++) {
+    if (String(linhaCabecalho[c] || '').trim().toUpperCase() === nomeDiaHoje) {
+      colDia = c;
+      break;
+    }
+  }
+
+  if (colDia < 0) {
+    alert('Não encontrei a coluna de "' + nomeDiaHoje + '" na planilha.');
+    return;
+  }
+
   const rowPrimeiraAula = rowCabecalho + 1;
 
   let novasReservas = {};
@@ -140,7 +161,7 @@ function processarDadosPlanilha(dados) {
     const row = dados[r];
     if (!row) break;
 
-    // O label da aula fica na mesma coluna do cabeçalho "AULA" (colDia + 1)
+    // O label da aula fica na coluna imediatamente após a coluna do dia
     const aulaLabel = String(row[colDia + 1] || '').trim();
     const aulaId = AULA_LABEL_MAP[aulaLabel];
 
