@@ -1,4 +1,3 @@
-
 const AULAS = [
   { id: '1a', label: '1ª', inicio: '7:00', fim: '7:50', tipo: 'aula' },
   { id: '2a', label: '2ª', inicio: '7:50', fim: '8:40', tipo: 'aula' },
@@ -76,23 +75,50 @@ async function buscarPlanilha() {
   }
 }
 
+// Mapeamento de label de aula para ID interno
+const AULA_LABEL_MAP = {
+  '1ª': '1a', '2ª': '2a', '3ª': '3a',
+  '4ª': '4a', '5ª': '5a', '6ª EM': '6aEM',
+  '6ª EF': '6aEF', '7ª': '7a', '8ª': '8a', '9ª': '9a'
+};
+
+// Cada carrinho ocupa 2 colunas (Professor, Turma), nesta ordem,
+// a partir da coluna onde está a data do dia.
+// Ex (quarta 17/06): data=col41 -> Multilaser prof=col45/turma=col46,
+// Samsung1=47/48, Samsung2=49/50, Positivo1=51/52, Acessa=53/54
+const CARRINHO_OFFSET = {
+  multilaser: 4, samsung1: 6, samsung2: 8, positivo1: 10, acessa: 12
+};
+
 function processarDadosPlanilha(dados) {
   const hoje = new Date();
   const hojeISO = hoje.getFullYear() + '-' +
     String(hoje.getMonth()+1).padStart(2,'0') + '-' +
     String(hoje.getDate()).padStart(2,'0');
 
-  // Procurar coluna com a data de hoje (ISO: 2026-06-17T...)
+  // Procurar a linha/coluna da data de hoje, mas SÓ em linhas que
+  // de fato são cabeçalhos de bloco de dia (têm uma data ISO numa célula
+  // e, 3 linhas abaixo, a palavra "AULA" na coluna seguinte).
+  // Isso evita cair em ocorrências erradas da mesma data em outro lugar da planilha.
   let colDia = -1;
   let rowDia = -1;
 
   for (let r = 0; r < dados.length; r++) {
-    for (let c = 0; c < dados[r].length; c++) {
-      const cell = String(dados[r][c]).trim();
-      if (cell.startsWith(hojeISO)) {
-        colDia = c;
-        rowDia = r;
-        break;
+    const row = dados[r];
+    for (let c = 0; c < row.length; c++) {
+      const cell = String(row[c] || '').trim();
+      if (!cell.startsWith(hojeISO)) continue;
+
+      // Confirma que é realmente um cabeçalho de bloco de dia:
+      // 3 linhas abaixo, a coluna c+1 deve conter "AULA"
+      const linhaCabecalho = dados[r + 3];
+      if (linhaCabecalho) {
+        const marcador = String(linhaCabecalho[c + 1] || '').trim().toUpperCase();
+        if (marcador === 'AULA') {
+          colDia = c;
+          rowDia = r;
+          break;
+        }
       }
     }
     if (colDia >= 0) break;
@@ -103,30 +129,24 @@ function processarDadosPlanilha(dados) {
     return;
   }
 
-  // Mapeamento de label de aula para ID interno
-  const AULA_LABEL_MAP = {
-    '1ª': '1a', '2ª': '2a', '3ª': '3a',
-    '4ª': '4a', '5ª': '5a', '6ª EM': '6aEM',
-    '6ª EF': '6aEF', '7ª': '7a', '8ª': '8a', '9ª': '9a'
-  };
-
-  // Offsets dos carrinhos relativos à coluna da data
-  // Estrutura: DATA | MULTILASER | TURMA | SAMSUNG1 | TURMA | SAMSUNG2 | TURMA | POSITIVO1 | TURMA | ACESSA | TURMA
-  const CARRINHO_OFFSET = {
-    multilaser: 2, samsung1: 4, samsung2: 6, positivo1: 10, acessa: 12
-  };
+  // A linha de cabeçalho com PROFESSOR/Turma fica 3 linhas abaixo da data.
+  // As linhas de aula começam imediatamente depois dela.
+  const rowCabecalho = rowDia + 3;
+  const rowPrimeiraAula = rowCabecalho + 1;
 
   let novasReservas = {};
 
-  // As linhas de aula começam após o cabeçalho (rowDia + 2)
-  // O label da aula fica na coluna colDia - 1
-  for (let r = rowDia + 2; r < dados.length; r++) {
+  for (let r = rowPrimeiraAula; r < dados.length; r++) {
     const row = dados[r];
-    const aulaLabel = String(row[colDia - 1] || '').trim();
+    if (!row) break;
+
+    // O label da aula fica na mesma coluna do cabeçalho "AULA" (colDia + 1)
+    const aulaLabel = String(row[colDia + 1] || '').trim();
     const aulaId = AULA_LABEL_MAP[aulaLabel];
 
     if (!aulaId) {
-      if (aulaLabel === '' && r > rowDia + 5) break;
+      // Linha vazia ou texto desconhecido após o bloco de aulas: encerra
+      if (aulaLabel === '') break;
       continue;
     }
 
@@ -134,8 +154,7 @@ function processarDadosPlanilha(dados) {
       const offset = CARRINHO_OFFSET[c];
       const prof = String(row[colDia + offset] || '').trim();
       const turma = String(row[colDia + offset + 1] || '').trim();
-      // Ignorar se o valor parece uma data ISO
-      if (prof && !prof.includes('T') && !prof.includes('-30T')) {
+      if (prof) {
         if (!novasReservas[aulaId]) novasReservas[aulaId] = {};
         novasReservas[aulaId][c] = { prof, turma, qtd: '' };
       }
