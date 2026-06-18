@@ -1101,7 +1101,7 @@ function renderAvulsas() {
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
           <button onclick="editarAvulsa(${a.id})" title="Editar" style="font-size:0.8rem;padding:5px 10px;color:var(--blue);background:var(--blue-light);border-radius:6px;border:1.5px solid var(--blue);cursor:pointer;font-weight:600;">✏️ Editar</button>
-          <button onclick="if(confirm('Remover este registro?')){avulsas=avulsas.filter(x=>x.id!==${a.id});saveData('avulsas_'+getDateKey(),avulsas);renderAvulsas();}" title="Remover" style="font-size:0.8rem;padding:5px 10px;color:var(--red);background:var(--red-light);border-radius:6px;border:1.5px solid var(--red);cursor:pointer;font-weight:600;">🗑 Remover</button>
+          <button onclick="removerAvulsa(${a.id})" title="Remover" style="font-size:0.8rem;padding:5px 10px;color:var(--red);background:var(--red-light);border-radius:6px;border:1.5px solid var(--red);cursor:pointer;font-weight:600;">🗑 Remover</button>
         </div>
       </div>
     `;
