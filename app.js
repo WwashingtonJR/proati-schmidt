@@ -1,3 +1,4 @@
+
 const AULAS = [
   { id: '1a', label: '1ª', inicio: '7:00', fim: '7:50', tipo: 'aula' },
   { id: '2a', label: '2ª', inicio: '7:50', fim: '8:40', tipo: 'aula' },
@@ -52,9 +53,100 @@ function saveData(key, val) {
   localStorage.setItem(key, JSON.stringify(val));
 }
 
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzoV6BRbRYmLyZ3VwQJpb5H4YNJ6JhD46fyKKBy-crYfhX9SmAv3PlFgHm0bnkm_vrD/exec';
+
 let reservas = loadData('reservas_' + getDateKey(), {});
 let avulsas = loadData('avulsas_' + getDateKey(), []);
 let editIdx = null;
+let dadosPlanilha = [];
+
+async function buscarPlanilha() {
+  const btn = document.getElementById('btnSincronizar');
+  if (btn) { btn.textContent = '⏳ Buscando...'; btn.disabled = true; }
+  try {
+    const res = await fetch(SHEETS_URL, { redirect: 'follow' });
+    const dados = await res.json();
+    dadosPlanilha = dados;
+    processarDadosPlanilha(dados);
+    if (btn) { btn.textContent = '🔄 Sincronizar Planilha'; btn.disabled = false; }
+  } catch(e) {
+    console.error(e);
+    alert('Erro ao buscar planilha: ' + e.message);
+    if (btn) { btn.textContent = '🔄 Sincronizar Planilha'; btn.disabled = false; }
+  }
+}
+
+function processarDadosPlanilha(dados) {
+  const hoje = new Date();
+  const hojeISO = hoje.getFullYear() + '-' +
+    String(hoje.getMonth()+1).padStart(2,'0') + '-' +
+    String(hoje.getDate()).padStart(2,'0');
+
+  // Procurar coluna com a data de hoje (ISO: 2026-06-17T...)
+  let colDia = -1;
+  let rowDia = -1;
+
+  for (let r = 0; r < dados.length; r++) {
+    for (let c = 0; c < dados[r].length; c++) {
+      const cell = String(dados[r][c]).trim();
+      if (cell.startsWith(hojeISO)) {
+        colDia = c;
+        rowDia = r;
+        break;
+      }
+    }
+    if (colDia >= 0) break;
+  }
+
+  if (colDia < 0) {
+    alert('Hoje (' + hoje.getDate() + '/' + (hoje.getMonth()+1) + ') não foi encontrado na planilha. Verifique se a aba JUNHO está atualizada.');
+    return;
+  }
+
+  // Mapeamento de label de aula para ID interno
+  const AULA_LABEL_MAP = {
+    '1ª': '1a', '2ª': '2a', '3ª': '3a',
+    '4ª': '4a', '5ª': '5a', '6ª EM': '6aEM',
+    '6ª EF': '6aEF', '7ª': '7a', '8ª': '8a', '9ª': '9a'
+  };
+
+  // Offsets dos carrinhos relativos à coluna da data
+  // Estrutura: DATA | MULTILASER | TURMA | SAMSUNG1 | TURMA | SAMSUNG2 | TURMA | POSITIVO1 | TURMA | ACESSA | TURMA
+  const CARRINHO_OFFSET = {
+    multilaser: 1, samsung1: 3, samsung2: 5, positivo1: 7, acessa: 9
+  };
+
+  let novasReservas = {};
+
+  // As linhas de aula começam após a linha do cabeçalho (rowDia + 2)
+  for (let r = rowDia + 2; r < dados.length; r++) {
+    const row = dados[r];
+    const aulaLabel = String(row[2] || '').trim();
+    const aulaId = AULA_LABEL_MAP[aulaLabel];
+
+    if (!aulaId) {
+      if (aulaLabel === '' && r > rowDia + 5) break;
+      continue;
+    }
+
+    CARRINHOS.forEach(c => {
+      const offset = CARRINHO_OFFSET[c];
+      const prof = String(row[colDia + offset] || '').trim();
+      const turma = String(row[colDia + offset + 1] || '').trim();
+      if (prof) {
+        if (!novasReservas[aulaId]) novasReservas[aulaId] = {};
+        novasReservas[aulaId][c] = { prof, turma, qtd: '' };
+      }
+    });
+
+    if (aulaLabel === '9ª') break;
+  }
+
+  reservas = novasReservas;
+  saveData('reservas_' + getDateKey(), reservas);
+  renderTabela();
+  alert('✅ Planilha sincronizada com sucesso!');
+}
 
 document.getElementById('headerDate').textContent = hoje();
 
@@ -134,6 +226,7 @@ function renderTabela() {
               <div class="cell-content">
                 <span class="cell-prof">${r.prof}</span>
                 ${r.turma ? `<span class="cell-turma">${r.turma}</span>` : ''}
+                ${r.qtd ? `<span style="font-size:0.7rem;color:var(--text2);">📦 ${r.qtd} notebooks</span>` : ''}
               </div>
             </td>
             <td>
@@ -174,6 +267,7 @@ function abrirModalReserva(aulaId, carrinho) {
   document.getElementById('modalReservaTitulo').textContent = 'Nova Reserva';
   document.getElementById('resProf').value = '';
   document.getElementById('resTurma').value = '';
+  document.getElementById('resQtd').value = '';
   if (aulaId) document.getElementById('resAula').value = aulaId;
   if (carrinho) document.getElementById('resCarrinho').value = carrinho;
   document.getElementById('modalReserva').classList.add('open');
@@ -188,6 +282,7 @@ function editarReserva(aulaId, carrinho) {
   document.getElementById('resCarrinho').value = carrinho;
   document.getElementById('resProf').value = r.prof || '';
   document.getElementById('resTurma').value = r.turma || '';
+  document.getElementById('resQtd').value = r.qtd || '';
   editIdx = { aulaId, carrinho };
   document.getElementById('modalReserva').classList.add('open');
 }
@@ -199,7 +294,8 @@ function salvarReserva() {
   const turma = document.getElementById('resTurma').value.trim();
   if (!prof) { alert('Informe o professor e a atividade.'); return; }
   if (!reservas[aula]) reservas[aula] = {};
-  reservas[aula][carrinho] = { prof, turma };
+  const qtd = document.getElementById('resQtd').value;
+  reservas[aula][carrinho] = { prof, turma, qtd };
   saveData('reservas_' + getDateKey(), reservas);
   fecharModal('modalReserva');
   renderTabela();
@@ -220,6 +316,8 @@ function limparDia() {
 }
 
 function abrirModalAvulsa() {
+  editIdx = null;
+  document.querySelector('#modalAvulsa h3').textContent = 'Registrar Pega Avulsa';
   populateAulaSelect('avAula');
   document.getElementById('avProf').value = '';
   document.getElementById('avNotebooks').value = '';
@@ -239,16 +337,48 @@ function salvarAvulsa() {
   const obs = document.getElementById('avObs').value.trim();
   if (!prof || !notebooks || !sala) { alert('Preencha professor, notebooks e sala.'); return; }
   const aulaObj = AULAS.find(a => a.id === aulaId);
-  avulsas.push({
-    id: Date.now(),
-    prof, carrinho, notebooks, qtd, sala,
-    aula: aulaObj ? `${aulaObj.label} (${aulaObj.inicio}–${aulaObj.fim})` : aulaId,
-    obs,
-    hora: new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}),
-  });
+  if (editIdx && editIdx.avulsaId) {
+    // Editando registro existente
+    const idx = avulsas.findIndex(x => x.id === editIdx.avulsaId);
+    if (idx >= 0) {
+      avulsas[idx] = {
+        ...avulsas[idx],
+        prof, carrinho, notebooks, qtd, sala,
+        aula: aulaObj ? `${aulaObj.label} (${aulaObj.inicio}–${aulaObj.fim})` : aulaId,
+        aulaId,
+        obs,
+      };
+    }
+    editIdx = null;
+  } else {
+    avulsas.push({
+      id: Date.now(),
+      prof, carrinho, notebooks, qtd, sala,
+      aula: aulaObj ? `${aulaObj.label} (${aulaObj.inicio}–${aulaObj.fim})` : aulaId,
+      aulaId,
+      obs,
+      hora: new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}),
+    });
+  }
   saveData('avulsas_' + getDateKey(), avulsas);
   fecharModal('modalAvulsa');
   renderAvulsas();
+}
+
+function editarAvulsa(id) {
+  const a = avulsas.find(x => x.id === id);
+  if (!a) return;
+  populateAulaSelect('avAula');
+  document.getElementById('avProf').value = a.prof || '';
+  document.getElementById('avCarrinho').value = a.carrinho || 'samsung1';
+  document.getElementById('avNotebooks').value = a.notebooks || '';
+  document.getElementById('avQtd').value = a.qtd || '';
+  document.getElementById('avSala').value = a.sala || '';
+  document.getElementById('avAula').value = a.aulaId || document.getElementById('avAula').options[0].value;
+  document.getElementById('avObs').value = a.obs || '';
+  editIdx = { avulsaId: id };
+  document.querySelector('#modalAvulsa h3').textContent = 'Editar Pega Avulsa';
+  document.getElementById('modalAvulsa').classList.add('open');
 }
 
 function removerAvulsa(id) {
@@ -278,7 +408,10 @@ function renderAvulsas() {
           </div>
           ${a.obs ? `<div class="pega-meta" style="margin-top:6px;font-style:italic;">💬 ${a.obs}</div>` : ''}
         </div>
-        <button class="del-btn" onclick="removerAvulsa(${a.id})" title="Remover" style="font-size:1rem;">✕</button>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+          <button onclick="editarAvulsa(${a.id})" title="Editar" style="font-size:0.8rem;padding:5px 10px;color:var(--blue);background:var(--blue-light);border-radius:6px;border:1.5px solid var(--blue);cursor:pointer;font-weight:600;">✏️ Editar</button>
+          <button onclick="removerAvulsa(${a.id})" title="Remover" style="font-size:0.8rem;padding:5px 10px;color:var(--red);background:var(--red-light);border-radius:6px;border:1.5px solid var(--red);cursor:pointer;font-weight:600;">🗑 Remover</button>
+        </div>
       </div>
     `;
   }).join('') + '</div>';
