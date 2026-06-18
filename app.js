@@ -113,7 +113,7 @@ function processarDadosPlanilha(dados) {
   // Offsets dos carrinhos relativos à coluna da data
   // Estrutura: DATA | MULTILASER | TURMA | SAMSUNG1 | TURMA | SAMSUNG2 | TURMA | POSITIVO1 | TURMA | ACESSA | TURMA
   const CARRINHO_OFFSET = {
-    multilaser: 1, samsung1: 3, samsung2: 5, positivo1: 7, acessa: 9
+    multilaser: 2, samsung1: 4, samsung2: 6, positivo1: 8, acessa: 10
   };
 
   let novasReservas = {};
